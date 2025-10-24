@@ -2,6 +2,8 @@
 
 A modern, beautiful React application for audio transcription and text-to-speech using OpenAI's API.
 
+**Live Demo**: https://schmidtpeti.github.io/audio-transcription/
+
 ## 🚀 Features
 
 - **Audio → Text**: Transcribe audio files using OpenAI's Whisper model
