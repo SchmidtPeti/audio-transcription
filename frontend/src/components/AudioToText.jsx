@@ -169,7 +169,6 @@ const AudioToText = ({ apiKey }) => {
             ref={fileInputRef}
             type="file"
             accept="audio/*,.m4a"
-            capture="environment"
             onChange={handleFileSelect}
             className="hidden"
           />
