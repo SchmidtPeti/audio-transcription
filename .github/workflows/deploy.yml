@@ -11,8 +11,6 @@ jobs:
     environment: Prod
     permissions:
       contents: write
-      pages: write
-      id-token: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -31,7 +29,7 @@ jobs:
         working-directory: ./frontend
 
       - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./frontend/build
+          personal_token: ${{ secrets.PAGE_TOKEN }}  # Use your token, not GITHUB_TOKEN
+          publish_dir: ./frontend/dist  # Changed from ./frontend/build
