@@ -8,8 +8,11 @@ const AudioToText = ({ apiKey }) => {
   const [isLoading, setIsLoading] = useState(false)
   const [progress, setProgress] = useState(0)
   const [dragActive, setDragActive] = useState(false)
+  const [isRecording, setIsRecording] = useState(false)
   const fileInputRef = useRef(null)
   const abortControllerRef = useRef(null)
+  const mediaRecorderRef = useRef(null)
+  const chunksRef = useRef([])
 
   const handleDrag = (e) => {
     e.preventDefault()
@@ -102,6 +105,41 @@ const AudioToText = ({ apiKey }) => {
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
   }
 
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mediaRecorder = new MediaRecorder(stream)
+      mediaRecorderRef.current = mediaRecorder
+      chunksRef.current = []
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) {
+          chunksRef.current.push(e.data)
+        }
+      }
+
+      mediaRecorder.onstop = () => {
+        const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
+        const file = new File([blob], `recording-${Date.now()}.webm`, { type: 'audio/webm' })
+        handleFile(file)
+        stream.getTracks().forEach(track => track.stop())
+      }
+
+      mediaRecorder.start()
+      setIsRecording(true)
+    } catch (error) {
+      alert('Could not access microphone. Please grant permission and try again.')
+      console.error('Recording error:', error)
+    }
+  }
+
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop()
+      setIsRecording(false)
+    }
+  }
+
   return (
     <div className="py-6 space-y-6">
       <div>
@@ -130,7 +168,8 @@ const AudioToText = ({ apiKey }) => {
           <input
             ref={fileInputRef}
             type="file"
-            accept="audio/*"
+            accept="audio/*,.m4a"
+            capture="environment"
             onChange={handleFileSelect}
             className="hidden"
           />
@@ -176,28 +215,45 @@ const AudioToText = ({ apiKey }) => {
         </Card>
       )}
 
-      {/* Action Buttons */}
-      <div className="flex gap-3">
-        <Button
-          color="primary"
-          size="lg"
-          className="flex-1"
-          isDisabled={!file || isLoading}
-          onPress={handleTranscribe}
-        >
-          Transcribe Audio
-        </Button>
-        {isLoading && (
+      {/* Recording Button */}
+      {!file && (
+        <div className="flex gap-3">
           <Button
-            color="danger"
+            color={isRecording ? "danger" : "secondary"}
             size="lg"
-            variant="flat"
-            onPress={handleCancel}
+            className="flex-1"
+            onPress={isRecording ? stopRecording : startRecording}
+            isDisabled={isLoading}
           >
-            ✕ Cancel
+            {isRecording ? '⏹️ Stop Recording' : '🎤 Record Audio'}
           </Button>
-        )}
-      </div>
+        </div>
+      )}
+
+      {/* Action Buttons */}
+      {file && (
+        <div className="flex gap-3">
+          <Button
+            color="primary"
+            size="lg"
+            className="flex-1"
+            isDisabled={!file || isLoading}
+            onPress={handleTranscribe}
+          >
+            Transcribe Audio
+          </Button>
+          {isLoading && (
+            <Button
+              color="danger"
+              size="lg"
+              variant="flat"
+              onPress={handleCancel}
+            >
+              ✕ Cancel
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* Result */}
       {transcription && (
