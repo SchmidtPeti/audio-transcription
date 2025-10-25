@@ -12,7 +12,38 @@ export const validatePin = (pin) => {
   return pin === VALID_PIN
 }
 
-export const sendTranscriptionEmail = async (transcription, audioFile, pin) => {
+// Upload file to file.io and get shareable link
+const uploadToFileIO = async (file) => {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  try {
+    const response = await fetch('https://file.io', {
+      method: 'POST',
+      body: formData
+    })
+
+    if (!response.ok) {
+      throw new Error(`File.io responded with status: ${response.status}`)
+    }
+
+    const data = await response.json()
+    console.log('File.io response:', data)
+
+    // File.io returns { success: true, key: "xxx", link: "https://file.io/xxx", expires: "14d" }
+    if (data.success === true && data.link) {
+      return data.link
+    } else {
+      console.error('Unexpected file.io response:', data)
+      throw new Error(data.message || 'Failed to upload file to file.io')
+    }
+  } catch (error) {
+    console.error('File.io upload error:', error)
+    throw error
+  }
+}
+
+export const sendTranscriptionEmail = async (transcription, audioFile, pin, customEmail = null) => {
   if (!validatePin(pin)) {
     throw new Error('Invalid PIN. Please enter the correct PIN to send email.')
   }
@@ -22,7 +53,7 @@ export const sendTranscriptionEmail = async (transcription, audioFile, pin) => {
 
   // Prepare email parameters
   const templateParams = {
-    to_email: DEFAULT_EMAIL,
+    to_email: customEmail || DEFAULT_EMAIL,
     from_name: 'Audio Transcription App',
     message: transcription.length > 3000
       ? `${transcription.substring(0, 3000)}...\n\n[Transcription too long - see attachment]`
@@ -45,21 +76,39 @@ export const sendTranscriptionEmail = async (transcription, audioFile, pin) => {
   }
 }
 
-export const sendAudioEmail = async (audioFile, audioUrl, settings, pin) => {
+export const sendAudioEmail = async (audioFile, audioUrl, settings, pin, customEmail = null) => {
   if (!validatePin(pin)) {
     throw new Error('Invalid PIN. Please enter the correct PIN to send email.')
   }
 
   emailjs.init(EMAILJS_PUBLIC_KEY)
 
+  // Upload file to file.io and get shareable link
+  let downloadLink = 'Not available'
+  let uploadError = null
+
+  try {
+    console.log('Uploading file to file.io...', audioFile)
+    downloadLink = await uploadToFileIO(audioFile)
+    console.log('Upload successful! Link:', downloadLink)
+  } catch (error) {
+    console.error('Failed to upload file:', error)
+    uploadError = error.message
+    // Continue with email even if upload fails
+  }
+
+  const message = uploadError
+    ? `Generated audio file from text.\n\nSettings:\n- Voice: ${settings.voice}\n- Quality: ${settings.quality}\n\n⚠️ File upload failed: ${uploadError}\nPlease contact support or try again.`
+    : `Generated audio file from text.\n\nSettings:\n- Voice: ${settings.voice}\n- Quality: ${settings.quality}\n\nDownload Link: ${downloadLink}\n\nNote: Link expires after one download or 14 days.`
+
   const templateParams = {
-    to_email: DEFAULT_EMAIL,
+    to_email: customEmail || DEFAULT_EMAIL,
     from_name: 'Audio Transcription App',
-    message: `Generated audio file from text.\n\nSettings:\n- Voice: ${settings.voice}\n- Quality: ${settings.quality}`,
+    message: message,
     file_name: audioFile?.name || 'generated-audio.mp3',
     file_size: audioFile ? `${(audioFile.size / 1024).toFixed(2)} KB` : 'N/A',
     timestamp: new Date().toLocaleString(),
-    audio_url: audioUrl, // If you want to include download link
+    download_link: downloadLink,
   }
 
   try {

@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react'
-import { Button, Card, CardBody, Textarea, RadioGroup, Radio, Progress, Chip, Input, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure } from '@nextui-org/react'
+import { Button, Card, CardBody, Textarea, RadioGroup, Radio, Progress, Chip, Input, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure, Checkbox } from '@nextui-org/react'
 import { generateSpeech } from '../services/openai'
 import { sendAudioEmail } from '../services/emailjs'
 
@@ -21,6 +21,8 @@ const TextToAudio = ({ apiKey }) => {
   const [progress, setProgress] = useState({ current: 0, total: 1 })
   const [pin, setPin] = useState('')
   const [isSendingEmail, setIsSendingEmail] = useState(false)
+  const [useCustomEmail, setUseCustomEmail] = useState(false)
+  const [customEmail, setCustomEmail] = useState('')
   const { isOpen, onOpen, onClose } = useDisclosure()
   const abortControllerRef = useRef(null)
   const audioBlobRef = useRef(null)
@@ -90,12 +92,24 @@ const TextToAudio = ({ apiKey }) => {
       return
     }
 
+    if (useCustomEmail && !customEmail.trim()) {
+      alert('Please enter an email address')
+      return
+    }
+
+    if (useCustomEmail && !customEmail.match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/)) {
+      alert('Please enter a valid email address')
+      return
+    }
+
     setIsSendingEmail(true)
     try {
       const audioFile = new File([audioBlobRef.current], `speech-${Date.now()}.mp3`, { type: 'audio/mpeg' })
-      await sendAudioEmail(audioFile, audioUrl, { voice, quality }, pin)
-      alert('✅ Email sent successfully to schmidt.peti32@gmail.com!')
+      const emailToSend = useCustomEmail ? customEmail : null
+      await sendAudioEmail(audioFile, audioUrl, { voice, quality }, pin, emailToSend)
+      alert(`✅ Email sent successfully to ${emailToSend || 'schmidt.peti32@gmail.com'}!`)
       setPin('')
+      setCustomEmail('')
       onClose()
     } catch (error) {
       alert(error.message)
@@ -106,6 +120,8 @@ const TextToAudio = ({ apiKey }) => {
 
   const openEmailModal = () => {
     setPin('')
+    setCustomEmail('')
+    setUseCustomEmail(false)
     onOpen()
   }
 
@@ -261,28 +277,55 @@ const TextToAudio = ({ apiKey }) => {
         <ModalContent>
           <ModalHeader className="flex flex-col gap-1">Send Audio to Email</ModalHeader>
           <ModalBody>
-            <p className="text-sm text-gray-600 mb-2">
-              Email will be sent to: <strong>schmidt.peti32@gmail.com</strong>
-            </p>
-            <p className="text-sm text-gray-500 mb-4">
-              ✓ Audio file info will be included
-            </p>
-            <Input
-              type="password"
-              label="Enter PIN"
-              placeholder="Enter your secret PIN"
-              value={pin}
-              onChange={(e) => setPin(e.target.value)}
-              autoFocus
-              onKeyPress={(e) => {
-                if (e.key === 'Enter') {
-                  handleSendEmail()
-                }
-              }}
-            />
-            <p className="text-xs text-gray-400 mt-2">
-              🔒 PIN required to prevent unauthorized email sending
-            </p>
+            <div className="space-y-4">
+              <div>
+                <Checkbox
+                  isSelected={useCustomEmail}
+                  onValueChange={setUseCustomEmail}
+                  size="sm"
+                >
+                  Send to a different email address
+                </Checkbox>
+              </div>
+
+              {useCustomEmail ? (
+                <Input
+                  type="email"
+                  label="Email Address"
+                  placeholder="Enter recipient email"
+                  value={customEmail}
+                  onChange={(e) => setCustomEmail(e.target.value)}
+                  description="Enter the email address where you want to send the audio"
+                />
+              ) : (
+                <p className="text-sm text-gray-600">
+                  Email will be sent to: <strong>schmidt.peti32@gmail.com</strong>
+                </p>
+              )}
+
+              <p className="text-sm text-gray-500">
+                ✓ Audio file will be uploaded to file.io<br/>
+                ✓ Download link will be included in email<br/>
+                <span className="text-xs text-gray-400">Note: Link expires after one download or 14 days</span>
+              </p>
+
+              <Input
+                type="password"
+                label="Enter PIN"
+                placeholder="Enter your secret PIN"
+                value={pin}
+                onChange={(e) => setPin(e.target.value)}
+                autoFocus
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter') {
+                    handleSendEmail()
+                  }
+                }}
+              />
+              <p className="text-xs text-gray-400">
+                🔒 PIN required to prevent unauthorized email sending
+              </p>
+            </div>
           </ModalBody>
           <ModalFooter>
             <Button color="danger" variant="light" onPress={onClose}>
@@ -292,9 +335,9 @@ const TextToAudio = ({ apiKey }) => {
               color="success"
               onPress={handleSendEmail}
               isLoading={isSendingEmail}
-              isDisabled={!pin}
+              isDisabled={!pin || (useCustomEmail && !customEmail.trim())}
             >
-              Send Email
+              {isSendingEmail ? 'Uploading & Sending...' : 'Send Email'}
             </Button>
           </ModalFooter>
         </ModalContent>
