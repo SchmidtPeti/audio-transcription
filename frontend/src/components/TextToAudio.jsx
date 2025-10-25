@@ -304,9 +304,9 @@ const TextToAudio = ({ apiKey }) => {
               )}
 
               <p className="text-sm text-gray-500">
-                ✓ Audio file will be uploaded to file.io<br/>
+                ✓ Audio file will be uploaded (catbox.moe)<br/>
                 ✓ Download link will be included in email<br/>
-                <span className="text-xs text-gray-400">Note: Link expires after one download or 14 days</span>
+                <span className="text-xs text-gray-400">Note: File hosted permanently, click link to download</span>
               </p>
 
               <Input

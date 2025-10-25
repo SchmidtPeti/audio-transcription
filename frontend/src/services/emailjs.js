@@ -12,33 +12,34 @@ export const validatePin = (pin) => {
   return pin === VALID_PIN
 }
 
-// Upload file to file.io and get shareable link
+// Upload file to catbox.moe and get shareable link
 const uploadToFileIO = async (file) => {
   const formData = new FormData()
-  formData.append('file', file)
+  formData.append('reqtype', 'fileupload')
+  formData.append('fileToUpload', file)
 
   try {
-    const response = await fetch('https://file.io', {
+    const response = await fetch('https://catbox.moe/user/api.php', {
       method: 'POST',
       body: formData
     })
 
     if (!response.ok) {
-      throw new Error(`File.io responded with status: ${response.status}`)
+      throw new Error(`Upload service responded with status: ${response.status}`)
     }
 
-    const data = await response.json()
-    console.log('File.io response:', data)
+    // catbox.moe returns the direct URL as plain text
+    const url = await response.text()
+    console.log('catbox.moe response URL:', url)
 
-    // File.io returns { success: true, key: "xxx", link: "https://file.io/xxx", expires: "14d" }
-    if (data.success === true && data.link) {
-      return data.link
+    if (url && url.startsWith('https://')) {
+      return url.trim()
     } else {
-      console.error('Unexpected file.io response:', data)
-      throw new Error(data.message || 'Failed to upload file to file.io')
+      console.error('Unexpected catbox.moe response:', url)
+      throw new Error('Failed to get download URL from upload service')
     }
   } catch (error) {
-    console.error('File.io upload error:', error)
+    console.error('File upload error:', error)
     throw error
   }
 }
@@ -83,12 +84,12 @@ export const sendAudioEmail = async (audioFile, audioUrl, settings, pin, customE
 
   emailjs.init(EMAILJS_PUBLIC_KEY)
 
-  // Upload file to file.io and get shareable link
+  // Upload file to catbox.moe and get shareable link
   let downloadLink = 'Not available'
   let uploadError = null
 
   try {
-    console.log('Uploading file to file.io...', audioFile)
+    console.log('Uploading file to catbox.moe...', audioFile)
     downloadLink = await uploadToFileIO(audioFile)
     console.log('Upload successful! Link:', downloadLink)
   } catch (error) {
@@ -99,7 +100,7 @@ export const sendAudioEmail = async (audioFile, audioUrl, settings, pin, customE
 
   const message = uploadError
     ? `Generated audio file from text.\n\nSettings:\n- Voice: ${settings.voice}\n- Quality: ${settings.quality}\n\n⚠️ File upload failed: ${uploadError}\nPlease contact support or try again.`
-    : `Generated audio file from text.\n\nSettings:\n- Voice: ${settings.voice}\n- Quality: ${settings.quality}\n\nDownload Link: ${downloadLink}\n\nNote: Link expires after one download or 14 days.`
+    : `Generated audio file from text.\n\nSettings:\n- Voice: ${settings.voice}\n- Quality: ${settings.quality}\n\nDownload Link: ${downloadLink}\n\nClick the link above to download your audio file.`
 
   const templateParams = {
     to_email: customEmail || DEFAULT_EMAIL,
