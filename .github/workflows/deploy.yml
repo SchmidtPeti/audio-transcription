@@ -26,6 +26,15 @@ jobs:
         run: npm install
         working-directory: ./frontend
 
+      - name: Create .env file
+        run: |
+          echo "VITE_EMAILJS_PUBLIC_KEY=${{ secrets.VITE_EMAILJS_PUBLIC_KEY }}" >> .env
+          echo "VITE_EMAILJS_SERVICE_ID=${{ secrets.VITE_EMAILJS_SERVICE_ID }}" >> .env
+          echo "VITE_EMAILJS_TEMPLATE_ID=${{ secrets.VITE_EMAILJS_TEMPLATE_ID }}" >> .env
+          echo "VITE_EMAIL_TO=${{ secrets.VITE_EMAIL_TO }}" >> .env
+          echo "VITE_EMAIL_PIN=${{ secrets.VITE_EMAIL_PIN }}" >> .env
+        working-directory: ./frontend
+
       - name: Build
         run: npm run build
         working-directory: ./frontend

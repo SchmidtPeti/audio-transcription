@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
-import { Button, Card, CardBody, Textarea, RadioGroup, Radio, Progress, Chip } from '@nextui-org/react'
+import { Button, Card, CardBody, Textarea, RadioGroup, Radio, Progress, Chip, Input, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure } from '@nextui-org/react'
 import { generateSpeech } from '../services/openai'
+import { sendAudioEmail } from '../services/emailjs'
 
 const VOICES = [
   { id: 'alloy', name: 'Alloy', desc: 'Neutral & versatile' },
@@ -18,6 +19,9 @@ const TextToAudio = ({ apiKey }) => {
   const [audioUrl, setAudioUrl] = useState(null)
   const [isLoading, setIsLoading] = useState(false)
   const [progress, setProgress] = useState({ current: 0, total: 1 })
+  const [pin, setPin] = useState('')
+  const [isSendingEmail, setIsSendingEmail] = useState(false)
+  const { isOpen, onOpen, onClose } = useDisclosure()
   const abortControllerRef = useRef(null)
   const audioBlobRef = useRef(null)
 
@@ -79,6 +83,31 @@ const TextToAudio = ({ apiKey }) => {
   }
 
   const progressPercent = progress.total > 0 ? (progress.current / progress.total) * 100 : 0
+
+  const handleSendEmail = async () => {
+    if (!audioUrl || !audioBlobRef.current) {
+      alert('No audio to send')
+      return
+    }
+
+    setIsSendingEmail(true)
+    try {
+      const audioFile = new File([audioBlobRef.current], `speech-${Date.now()}.mp3`, { type: 'audio/mpeg' })
+      await sendAudioEmail(audioFile, audioUrl, { voice, quality }, pin)
+      alert('✅ Email sent successfully to schmidt.peti32@gmail.com!')
+      setPin('')
+      onClose()
+    } catch (error) {
+      alert(error.message)
+    } finally {
+      setIsSendingEmail(false)
+    }
+  }
+
+  const openEmailModal = () => {
+    setPin('')
+    onOpen()
+  }
 
   return (
     <div className="py-6 space-y-6">
@@ -200,14 +229,24 @@ const TextToAudio = ({ apiKey }) => {
         <div className="space-y-3">
           <div className="flex justify-between items-center">
             <h3 className="text-lg font-semibold">Generated Audio</h3>
-            <Button
-              size="sm"
-              variant="flat"
-              color="primary"
-              onPress={handleDownload}
-            >
-              💾 Download
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="flat"
+                color="primary"
+                onPress={handleDownload}
+              >
+                💾 Download
+              </Button>
+              <Button
+                size="sm"
+                variant="flat"
+                color="success"
+                onPress={openEmailModal}
+              >
+                📧 Email
+              </Button>
+            </div>
           </div>
           <Card>
             <CardBody>
@@ -216,6 +255,50 @@ const TextToAudio = ({ apiKey }) => {
           </Card>
         </div>
       )}
+
+      {/* Email PIN Modal */}
+      <Modal isOpen={isOpen} onClose={onClose}>
+        <ModalContent>
+          <ModalHeader className="flex flex-col gap-1">Send Audio to Email</ModalHeader>
+          <ModalBody>
+            <p className="text-sm text-gray-600 mb-2">
+              Email will be sent to: <strong>schmidt.peti32@gmail.com</strong>
+            </p>
+            <p className="text-sm text-gray-500 mb-4">
+              ✓ Audio file info will be included
+            </p>
+            <Input
+              type="password"
+              label="Enter PIN"
+              placeholder="Enter your secret PIN"
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              autoFocus
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  handleSendEmail()
+                }
+              }}
+            />
+            <p className="text-xs text-gray-400 mt-2">
+              🔒 PIN required to prevent unauthorized email sending
+            </p>
+          </ModalBody>
+          <ModalFooter>
+            <Button color="danger" variant="light" onPress={onClose}>
+              Cancel
+            </Button>
+            <Button
+              color="success"
+              onPress={handleSendEmail}
+              isLoading={isSendingEmail}
+              isDisabled={!pin}
+            >
+              Send Email
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </div>
   )
 }

@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react'
-import { Button, Card, CardBody, Progress, Chip } from '@nextui-org/react'
+import { Button, Card, CardBody, Progress, Chip, Input, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter, useDisclosure } from '@nextui-org/react'
 import { transcribeAudio } from '../services/openai'
+import { sendTranscriptionEmail } from '../services/emailjs'
 
 const AudioToText = ({ apiKey }) => {
   const [file, setFile] = useState(null)
@@ -9,6 +10,9 @@ const AudioToText = ({ apiKey }) => {
   const [progress, setProgress] = useState(0)
   const [dragActive, setDragActive] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
+  const [pin, setPin] = useState('')
+  const [isSendingEmail, setIsSendingEmail] = useState(false)
+  const { isOpen, onOpen, onClose } = useDisclosure()
   const fileInputRef = useRef(null)
   const abortControllerRef = useRef(null)
   const mediaRecorderRef = useRef(null)
@@ -140,6 +144,30 @@ const AudioToText = ({ apiKey }) => {
     }
   }
 
+  const handleSendEmail = async () => {
+    if (!transcription) {
+      alert('No transcription to send')
+      return
+    }
+
+    setIsSendingEmail(true)
+    try {
+      await sendTranscriptionEmail(transcription, file, pin)
+      alert('✅ Email sent successfully to schmidt.peti32@gmail.com!')
+      setPin('')
+      onClose()
+    } catch (error) {
+      alert(error.message)
+    } finally {
+      setIsSendingEmail(false)
+    }
+  }
+
+  const openEmailModal = () => {
+    setPin('')
+    onOpen()
+  }
+
   return (
     <div className="py-6 space-y-6">
       <div>
@@ -259,14 +287,24 @@ const AudioToText = ({ apiKey }) => {
         <div className="space-y-3">
           <div className="flex justify-between items-center">
             <h3 className="text-lg font-semibold">Transcription Result</h3>
-            <Button
-              size="sm"
-              variant="flat"
-              color="primary"
-              onPress={handleCopy}
-            >
-              📋 Copy
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="flat"
+                color="primary"
+                onPress={handleCopy}
+              >
+                📋 Copy
+              </Button>
+              <Button
+                size="sm"
+                variant="flat"
+                color="success"
+                onPress={openEmailModal}
+              >
+                📧 Email
+              </Button>
+            </div>
           </div>
           <Card>
             <CardBody>
@@ -275,6 +313,52 @@ const AudioToText = ({ apiKey }) => {
           </Card>
         </div>
       )}
+
+      {/* Email PIN Modal */}
+      <Modal isOpen={isOpen} onClose={onClose}>
+        <ModalContent>
+          <ModalHeader className="flex flex-col gap-1">Send to Email</ModalHeader>
+          <ModalBody>
+            <p className="text-sm text-gray-600 mb-2">
+              Email will be sent to: <strong>schmidt.peti32@gmail.com</strong>
+            </p>
+            <p className="text-sm text-gray-500 mb-4">
+              {transcription.length > 3000
+                ? '⚠️ Transcription is long and will be truncated in email'
+                : '✓ Full transcription will be included'}
+            </p>
+            <Input
+              type="password"
+              label="Enter PIN"
+              placeholder="Enter your secret PIN"
+              value={pin}
+              onChange={(e) => setPin(e.target.value)}
+              autoFocus
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  handleSendEmail()
+                }
+              }}
+            />
+            <p className="text-xs text-gray-400 mt-2">
+              🔒 PIN required to prevent unauthorized email sending
+            </p>
+          </ModalBody>
+          <ModalFooter>
+            <Button color="danger" variant="light" onPress={onClose}>
+              Cancel
+            </Button>
+            <Button
+              color="success"
+              onPress={handleSendEmail}
+              isLoading={isSendingEmail}
+              isDisabled={!pin}
+            >
+              Send Email
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </div>
   )
 }
